@@ -13,7 +13,7 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
 def save_annotation():
     try:
         data = request.json
-        class_name = data.get('className', 'unknown')
+        classes = data.get('classes', [])
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"coco_{timestamp}.json"
         
@@ -32,19 +32,19 @@ def save_annotation():
                 "date_captured": timestamp
             }],
             "annotations": [{
-                "id": i+1,
+                "id": idx + 1,
                 "image_id": 1,
-                "category_id": 1,
-                "segmentation": [polygon],
+                "category_id": polygon['classId'],
+                "segmentation": [polygon['points']],
                 "area": 0,
                 "bbox": [],
                 "iscrowd": 0
-            } for i, polygon in enumerate(data.get('polygons', []))],
+            } for idx, polygon in enumerate(data.get('polygons', []))],
             "categories": [{
-                "id": 1,
-                "name": class_name,
+                "id": i + 1,
+                "name": cls['name'],
                 "supercategory": "object"
-            }]
+            } for i, cls in enumerate(classes)]
         }
         
         with open(os.path.join(app.config['UPLOAD_FOLDER'], filename), 'w') as f:

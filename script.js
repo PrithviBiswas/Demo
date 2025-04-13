@@ -4,17 +4,21 @@ const imageUpload = document.getElementById('imageUpload');
 const drawBtn = document.getElementById('drawBtn');
 const clearBtn = document.getElementById('clearBtn');
 const saveBtn = document.getElementById('saveBtn');
-const colorPicker = document.getElementById('colorPicker');
+const addClassBtn = document.getElementById('addClassBtn');
+const newClassName = document.getElementById('newClassName');
+const newClassColor = document.getElementById('newClassColor');
+const classList = document.getElementById('classList');
 
 let isDrawing = false;
 let currentPolygon = [];
 let polygons = [];
+let classes = [];
+let activeClass = null;
 let img = null;
 let scaleFactor = 1;
 let selectedPoint = null;
 let isDragging = false;
 const POINT_RADIUS = 5;
-let currentColor = 'rgba(255,0,0,0.5)'; // Default color
 
 // Handle image upload
 imageUpload.addEventListener('change', function(e) {
@@ -43,10 +47,36 @@ imageUpload.addEventListener('change', function(e) {
     }
 });
 
-// Color picker change event
-colorPicker.addEventListener('change', function() {
-    currentColor = this.value;
+// Class management
+addClassBtn.addEventListener('click', function() {
+    const name = newClassName.value.trim();
+    const color = newClassColor.value;
+    
+    if (name && !classes.some(c => c.name === name)) {
+        const newClass = { name, color, id: classes.length + 1 };
+        classes.push(newClass);
+        activeClass = newClass;
+        renderClassList();
+        newClassName.value = '';
+    }
 });
+
+function renderClassList() {
+    classList.innerHTML = '';
+    classes.forEach(cls => {
+        const classItem = document.createElement('div');
+        classItem.className = `class-item ${activeClass?.id === cls.id ? 'active' : ''}`;
+        classItem.innerHTML = `
+            <div class="class-color" style="background-color: ${cls.color}"></div>
+            <span>${cls.name}</span>
+        `;
+        classItem.addEventListener('click', () => {
+            activeClass = cls;
+            renderClassList();
+        });
+        classList.appendChild(classItem);
+    });
+}
 
 // Drawing mode toggle
 drawBtn.addEventListener('click', function() {
@@ -106,7 +136,10 @@ function handleMouseUp() {
 
 function completePolygon() {
     if (currentPolygon.length > 2) {
-        polygons.push([...currentPolygon]);
+        polygons.push({
+            points: [...currentPolygon],
+            classId: activeClass?.id || 1
+        });
         currentPolygon = [];
         redrawPolygons();
     }
@@ -121,8 +154,9 @@ function getMousePos(e) {
 }
 
 function findPointNear(pos) {
-    for (const polygon of [...polygons, currentPolygon]) {
-        for (const point of polygon) {
+    // Check polygons array (completed polygons)
+    for (const poly of polygons) {
+        for (const point of poly.points) {
             const dist = Math.sqrt(
                 Math.pow(pos.x - point.x, 2) + 
                 Math.pow(pos.y - point.y, 2)
@@ -132,6 +166,18 @@ function findPointNear(pos) {
             }
         }
     }
+    
+    // Check current polygon (in-progress)
+    for (const point of currentPolygon) {
+        const dist = Math.sqrt(
+            Math.pow(pos.x - point.x, 2) + 
+            Math.pow(pos.y - point.y, 2)
+        );
+        if (dist <= POINT_RADIUS) {
+            return point;
+        }
+    }
+    
     return null;
 }
 
@@ -146,7 +192,7 @@ function drawCurrentSegment(toPos) {
     }
     
     ctx.lineTo(toPos.x, toPos.y);
-    ctx.strokeStyle = currentColor; // Use selected color
+    ctx.strokeStyle = activeClass?.color || 'rgba(255,0,0,0.5)';
     ctx.lineWidth = 2;
     ctx.stroke();
 }
@@ -157,31 +203,33 @@ function redrawPolygons() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     
-    ctx.strokeStyle = '#FF0000';
-    ctx.lineWidth = 2;
-    ctx.fillStyle = currentColor; // Use selected color
-    
-    for (const polygon of [...polygons, currentPolygon]) {
-        if (polygon.length < 2) continue;
+    for (const poly of [...polygons, {points: currentPolygon}]) {
+        if (!poly.points || poly.points.length < 2) continue;
+        
+        const polygonClass = classes.find(c => c.id === poly.classId) || activeClass;
+        ctx.strokeStyle = polygonClass?.color || 'rgba(255,0,0,0.5)';
+        ctx.fillStyle = polygonClass?.color || 'rgba(255,0,0,0.5)';
+        ctx.lineWidth = 2;
         
         ctx.beginPath();
-        ctx.moveTo(polygon[0].x, polygon[0].y);
+        ctx.moveTo(poly.points[0].x, poly.points[0].y);
         
-        for (let i = 1; i < polygon.length; i++) {
-            ctx.lineTo(polygon[i].x, polygon[i].y);
+        for (let i = 1; i < poly.points.length; i++) {
+            ctx.lineTo(poly.points[i].x, poly.points[i].y);
         }
         
-        if (polygon === currentPolygon) {
+        if (poly.points === currentPolygon) {
             ctx.stroke();
         } else {
             ctx.closePath();
             ctx.stroke();
-            ctx.fill(); // Fill with selected color
+            ctx.fill();
         }
     }
     
-    for (const polygon of [...polygons, currentPolygon]) {
-        for (const point of polygon) {
+    for (const poly of [...polygons, {points: currentPolygon}]) {
+        if (!poly.points) continue;
+        for (const point of poly.points) {
             ctx.beginPath();
             ctx.arc(point.x, point.y, POINT_RADIUS, 0, Math.PI * 2);
             ctx.fillStyle = point === selectedPoint ? '#00FF00' : '#FF0000';
@@ -191,17 +239,16 @@ function redrawPolygons() {
 }
 
 function saveAnnotation() {
-    if (polygons.length > 0 && img) {
-        const className = document.getElementById('className').value || 'unknown';
+    if (polygons.length > 0 && img && classes.length > 0) {
         const annotations = {
-            className: className,
             image: imageUpload.files[0]?.name,
             width: img.width,
             height: img.height,
-            color: currentColor,
-            polygons: polygons.map(poly => 
-                poly.flatMap(point => [point.x / scaleFactor, point.y / scaleFactor])
-            )
+            polygons: polygons.map(poly => ({
+                classId: poly.classId,
+                points: poly.points.flatMap(point => [point.x / scaleFactor, point.y / scaleFactor])
+            })),
+            classes: classes
         };
         
         fetch('/save-annotation', {

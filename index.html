@@ -9,17 +9,25 @@
         <h1>Image Annotation Tool</h1>
         <div class="controls">
             <input type="file" id="imageUpload" accept="image/*">
-            <input type="text" id="className" placeholder="Enter class name">
-            <select id="colorPicker">
-                <option value="rgba(255,0,0,0.5)">Red</option>
-                <option value="rgba(0,255,0,0.5)">Green</option>
-                <option value="rgba(0,0,255,0.5)">Blue</option>
-                <option value="rgba(255,255,0,0.5)">Yellow</option>
-                <option value="rgba(255,0,255,0.5)">Magenta</option>
-            </select>
-            <button id="drawBtn">Draw Polygon</button>
-            <button id="clearBtn">Clear Canvas</button>
-            <button id="saveBtn">Save Annotation</button>
+            <div class="class-controls">
+                <div class="class-input">
+                    <input type="text" id="newClassName" placeholder="New class name">
+                    <select id="newClassColor">
+                        <option value="rgba(255,0,0,0.5)">Red</option>
+                        <option value="rgba(0,255,0,0.5)">Green</option>
+                        <option value="rgba(0,0,255,0.5)">Blue</option>
+                        <option value="rgba(255,255,0,0.5)">Yellow</option>
+                        <option value="rgba(255,0,255,0.5)">Magenta</option>
+                    </select>
+                    <button id="addClassBtn">Add Class</button>
+                </div>
+                <div id="classList" class="class-list"></div>
+            </div>
+            <div class="draw-controls">
+                <button id="drawBtn">Draw Polygon</button>
+                <button id="clearBtn">Clear Canvas</button>
+                <button id="saveBtn">Save Annotation</button>
+            </div>
         </div>
         <canvas id="annotationCanvas"></canvas>
     </div>

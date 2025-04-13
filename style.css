@@ -22,6 +22,50 @@ h1 {
 .controls {
     margin: 20px 0;
     display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.class-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.class-input {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.class-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.class-item {
+    padding: 5px 10px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    background-color: #f0f0f0;
+}
+
+.class-item.active {
+    background-color: #e0e0e0;
+}
+
+.class-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+}
+
+.draw-controls {
+    display: flex;
     gap: 10px;
     flex-wrap: wrap;
 }
