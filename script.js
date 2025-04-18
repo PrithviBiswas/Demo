@@ -129,10 +129,10 @@ function drawTemporaryPolygon() {
     removeTemporaryPolygon();
     if (currentPolygonPoints.length < 2) return;
 
-    tempPolygon = new fabric.Polygon(currentPolygonPoints, {
+    tempPolygon = new fabric.Polyline(currentPolygonPoints, {
         stroke: activeClass?.color || 'rgba(255,0,0,0.5)',
         strokeWidth: 2,
-        fill: 'transparent',
+        fill: '',
         selectable: false,
         evented: false
     });
