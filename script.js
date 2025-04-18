@@ -1,5 +1,8 @@
-const canvas = document.getElementById('annotationCanvas');
-const ctx = canvas.getContext('2d');
+const canvasElement = document.getElementById('annotationCanvas');
+const fabricCanvas = new fabric.Canvas('annotationCanvas', {
+    selection: false,
+    preserveObjectStacking: true
+});
 const imageUpload = document.getElementById('imageUpload');
 const drawBtn = document.getElementById('drawBtn');
 const clearBtn = document.getElementById('clearBtn');
@@ -10,56 +13,12 @@ const newClassColor = document.getElementById('newClassColor');
 const classList = document.getElementById('classList');
 
 let isDrawing = false;
-let currentPolygon = [];
+let currentPolygonPoints = [];
 let polygons = [];
 let classes = [];
 let activeClass = null;
 let img = null;
 let scaleFactor = 1;
-let selectedPoint = null;
-let isDragging = false;
-const POINT_RADIUS = 5;
-
-// Handle image upload
-imageUpload.addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            img = new Image();
-            img.onload = function() {
-                const maxWidth = 800;
-                const maxHeight = 600;
-                scaleFactor = Math.min(
-                    maxWidth / img.width,
-                    maxHeight / img.height
-                );
-                
-                canvas.width = img.width * scaleFactor;
-                canvas.height = img.height * scaleFactor;
-                
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                redrawPolygons();
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-});
-
-// Class management
-addClassBtn.addEventListener('click', function() {
-    const name = newClassName.value.trim();
-    const color = newClassColor.value;
-    
-    if (name && !classes.some(c => c.name === name)) {
-        const newClass = { name, color, id: classes.length + 1 };
-        classes.push(newClass);
-        activeClass = newClass;
-        renderClassList();
-        newClassName.value = '';
-    }
-});
 
 function renderClassList() {
     classList.innerHTML = '';
@@ -78,179 +37,289 @@ function renderClassList() {
     });
 }
 
-// Drawing mode toggle
+addClassBtn.addEventListener('click', function() {
+    const name = newClassName.value.trim();
+    const color = newClassColor.value;
+
+    if (name && !classes.some(c => c.name === name)) {
+        const newClass = { name, color, id: classes.length + 1 };
+        classes.push(newClass);
+        activeClass = newClass;
+        renderClassList();
+        newClassName.value = '';
+    }
+});
+
+imageUpload.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            fabric.Image.fromURL(event.target.result, function(oImg) {
+                img = oImg;
+                const maxWidth = 800;
+                const maxHeight = 600;
+                scaleFactor = Math.min(
+                    maxWidth / img.width,
+                    maxHeight / img.height
+                );
+                img.scale(scaleFactor);
+                fabricCanvas.setWidth(img.width * scaleFactor);
+                fabricCanvas.setHeight(img.height * scaleFactor);
+                fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
+                clearAllPolygons();
+            });
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
 drawBtn.addEventListener('click', function() {
     isDrawing = !isDrawing;
     drawBtn.textContent = isDrawing ? 'Drawing...' : 'Draw Polygon';
-    selectedPoint = null;
-});
-
-// Clear canvas
-clearBtn.addEventListener('click', function() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (img) {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    }
-    currentPolygon = [];
-    polygons = [];
-    selectedPoint = null;
-});
-
-// Save annotation
-saveBtn.addEventListener('click', saveAnnotation);
-
-// Drawing event handlers
-canvas.addEventListener('mousedown', handleMouseDown);
-canvas.addEventListener('mousemove', handleMouseMove);
-canvas.addEventListener('mouseup', handleMouseUp);
-canvas.addEventListener('dblclick', completePolygon);
-
-function handleMouseDown(e) {
-    const pos = getMousePos(e);
-    
     if (isDrawing) {
-        currentPolygon.push(pos);
-        redrawPolygons();
+        fabricCanvas.selection = false;
+        fabricCanvas.defaultCursor = 'crosshair';
+        fabricCanvas.on('mouse:down', onCanvasMouseDown);
+        fabricCanvas.on('mouse:dblclick', completePolygon);
     } else {
-        selectedPoint = findPointNear(pos);
-        isDragging = selectedPoint !== null;
+        fabricCanvas.selection = true;
+        fabricCanvas.defaultCursor = 'default';
+        fabricCanvas.off('mouse:down', onCanvasMouseDown);
+        fabricCanvas.off('mouse:dblclick', completePolygon);
+        if (currentPolygonPoints.length > 2) {
+            addPolygon(currentPolygonPoints);
+        }
+        currentPolygonPoints = [];
+        removeTemporaryPolygon();
     }
-}
-
-function handleMouseMove(e) {
-    const pos = getMousePos(e);
-    
-    if (isDragging && selectedPoint) {
-        selectedPoint.x = pos.x;
-        selectedPoint.y = pos.y;
-        redrawPolygons();
-    } else if (isDrawing && currentPolygon.length > 0) {
-        redrawPolygons();
-        drawCurrentSegment(pos);
-    }
-}
-
-function handleMouseUp() {
-    isDragging = false;
-}
+});
 
 function completePolygon() {
-    if (currentPolygon.length > 2) {
-        polygons.push({
-            points: [...currentPolygon],
-            classId: activeClass?.id || 1
+    if (currentPolygonPoints.length > 2) {
+        addPolygon(currentPolygonPoints);
+        currentPolygonPoints = [];
+        removeTemporaryPolygon();
+    }
+}
+
+clearBtn.addEventListener('click', function() {
+    fabricCanvas.clear();
+    if (img) {
+        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
+    }
+    clearAllPolygons();
+});
+
+saveBtn.addEventListener('click', saveAnnotation);
+
+let tempPolygon = null;
+let tempVertexCircles = [];
+let vertexCircles = [];
+
+function onCanvasMouseDown(options) {
+    if (!isDrawing) return;
+    const pointer = fabricCanvas.getPointer(options.e);
+    currentPolygonPoints.push({ x: pointer.x, y: pointer.y });
+    drawTemporaryPolygon();
+    drawTemporaryVertexCircles();
+}
+
+function drawTemporaryPolygon() {
+    removeTemporaryPolygon();
+    if (currentPolygonPoints.length < 2) return;
+
+    tempPolygon = new fabric.Polygon(currentPolygonPoints, {
+        stroke: activeClass?.color || 'rgba(255,0,0,0.5)',
+        strokeWidth: 2,
+        fill: 'transparent',
+        selectable: false,
+        evented: false
+    });
+    fabricCanvas.add(tempPolygon);
+    fabricCanvas.renderAll();
+}
+
+function drawTemporaryVertexCircles() {
+    removeTemporaryVertexCircles();
+    currentPolygonPoints.forEach(point => {
+        const circle = new fabric.Circle({
+            left: point.x - 5,
+            top: point.y - 5,
+            radius: 5,
+            fill: activeClass?.color || 'rgba(255,0,0,0.7)',
+            selectable: true,
+            evented: true,
+            originX: 'center',
+            originY: 'center'
         });
-        currentPolygon = [];
-        redrawPolygons();
-    }
+        circle.on('moving', function(e) {
+            const pos = circle.getCenterPoint();
+            const index = circle.index;
+            currentPolygonPoints[index].x = pos.x;
+            currentPolygonPoints[index].y = pos.y;
+            drawTemporaryPolygon();
+            drawTemporaryVertexCircles();
+        });
+        circle.index = currentPolygonPoints.indexOf(point);
+        tempVertexCircles.push(circle);
+        fabricCanvas.add(circle);
+    });
+    fabricCanvas.renderAll();
 }
 
-function getMousePos(e) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-    };
+function removeTemporaryPolygon() {
+    if (tempPolygon) {
+        fabricCanvas.remove(tempPolygon);
+        tempPolygon = null;
+    }
+    removeTemporaryVertexCircles();
+    fabricCanvas.renderAll();
 }
 
-function findPointNear(pos) {
-    // Check polygons array (completed polygons)
-    for (const poly of polygons) {
-        for (const point of poly.points) {
-            const dist = Math.sqrt(
-                Math.pow(pos.x - point.x, 2) + 
-                Math.pow(pos.y - point.y, 2)
-            );
-            if (dist <= POINT_RADIUS) {
-                return point;
-            }
-        }
-    }
-    
-    // Check current polygon (in-progress)
-    for (const point of currentPolygon) {
-        const dist = Math.sqrt(
-            Math.pow(pos.x - point.x, 2) + 
-            Math.pow(pos.y - point.y, 2)
-        );
-        if (dist <= POINT_RADIUS) {
-            return point;
-        }
-    }
-    
-    return null;
+function removeTemporaryVertexCircles() {
+    tempVertexCircles.forEach(circle => fabricCanvas.remove(circle));
+    tempVertexCircles = [];
 }
 
-function drawCurrentSegment(toPos) {
-    if (currentPolygon.length === 0) return;
-    
-    ctx.beginPath();
-    ctx.moveTo(currentPolygon[0].x, currentPolygon[0].y);
-    
-    for (let i = 1; i < currentPolygon.length; i++) {
-        ctx.lineTo(currentPolygon[i].x, currentPolygon[i].y);
-    }
-    
-    ctx.lineTo(toPos.x, toPos.y);
-    ctx.strokeStyle = activeClass?.color || 'rgba(255,0,0,0.5)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+function clearAllPolygons() {
+    polygons.forEach(p => {
+        fabricCanvas.remove(p.polygon);
+        p.vertexCircles.forEach(c => fabricCanvas.remove(c));
+    });
+    polygons = [];
+    vertexCircles = [];
+    currentPolygonPoints = [];
+    fabricCanvas.discardActiveObject();
+    fabricCanvas.renderAll();
 }
 
-function redrawPolygons() {
-    if (!img) return;
-    
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    
-    for (const poly of [...polygons, {points: currentPolygon}]) {
-        if (!poly.points || poly.points.length < 2) continue;
-        
-        const polygonClass = classes.find(c => c.id === poly.classId) || activeClass;
-        ctx.strokeStyle = polygonClass?.color || 'rgba(255,0,0,0.5)';
-        ctx.fillStyle = polygonClass?.color || 'rgba(255,0,0,0.5)';
-        ctx.lineWidth = 2;
-        
-        ctx.beginPath();
-        ctx.moveTo(poly.points[0].x, poly.points[0].y);
-        
-        for (let i = 1; i < poly.points.length; i++) {
-            ctx.lineTo(poly.points[i].x, poly.points[i].y);
+function addPolygon(points) {
+    const polygon = new fabric.Polygon(points, {
+        stroke: activeClass?.color || 'rgba(255,0,0,0.5)',
+        strokeWidth: 2,
+        fill: activeClass?.color || 'rgba(255,0,0,0.3)',
+        objectCaching: false,
+        transparentCorners: false,
+        cornerColor: 'blue',
+        cornerSize: 8,
+        hasRotatingPoint: false,
+        perPixelTargetFind: true,
+        selectable: true,
+        hasBorders: false,
+        hasControls: false,
+        lockMovementX: true,
+        lockMovementY: true
+    });
+
+    polygon.on('moving', () => {
+        updateVertexCircles(polygons.find(p => p.polygon === polygon));
+        fabricCanvas.renderAll();
+    });
+
+    polygon.on('modified', () => {
+        const p = polygons.find(p => p.polygon === polygon);
+        if (!p) return;
+        p.polygon.points = p.polygon.get('points').map(p => ({ x: p.x, y: p.y }));
+        updateVertexCircles(p);
+        fabricCanvas.renderAll();
+    });
+    polygon.classId = activeClass?.id || 1;
+    fabricCanvas.add(polygon);
+
+    // Create vertex circles for editing
+    const circles = points.map((point, index) => {
+        const circle = new fabric.Circle({
+            left: point.x - 5,
+            top: point.y - 5,
+            radius: 5,
+            fill: 'white',
+            stroke: 'black',
+            strokeWidth: 1,
+            hasBorders: false,
+            hasControls: false,
+            originX: 'center',
+            originY: 'center',
+            selectable: true,
+            evented: true,
+            index: index
+        });
+        circle.on('moving', function(e) {
+            const p = polygons.find(p => p.polygon === polygon);
+            if (!p) return;
+            const pos = circle.getCenterPoint();
+            p.polygon.points[circle.index].x = pos.x;
+            p.polygon.points[circle.index].y = pos.y;
+            p.polygon.set({ dirty: true });
+            p.polygon.setCoords();
+            updatePolygonPath(p.polygon);
+            updateVertexCircles(p);
+            fabricCanvas.renderAll();
+        });
+        fabricCanvas.add(circle);
+        return circle;
+    });
+
+    polygons.push({ polygon: polygon, vertexCircles: circles, classId: polygon.classId });
+
+    polygon.on('selected', () => {
+        // Show vertex circles for selected polygon
+        polygons.forEach(p => {
+            p.vertexCircles.forEach(c => c.visible = false);
+        });
+        const p = polygons.find(p => p.polygon === polygon);
+        if (p) {
+            p.vertexCircles.forEach(c => c.set('visible', true));
         }
-        
-        if (poly.points === currentPolygon) {
-            ctx.stroke();
-        } else {
-            ctx.closePath();
-            ctx.stroke();
-            ctx.fill();
+        fabricCanvas.renderAll();
+    });
+
+    polygon.on('deselected', () => {
+        // Hide vertex circles when polygon is deselected
+        const p = polygons.find(p => p.polygon === polygon);
+        if (p) {
+            p.vertexCircles.forEach(c => c.set('visible', false));
         }
-    }
-    
-    for (const poly of [...polygons, {points: currentPolygon}]) {
-        if (!poly.points) continue;
-        for (const point of poly.points) {
-            ctx.beginPath();
-            ctx.arc(point.x, point.y, POINT_RADIUS, 0, Math.PI * 2);
-            ctx.fillStyle = point === selectedPoint ? '#00FF00' : '#FF0000';
-            ctx.fill();
-        }
-    }
+        fabricCanvas.renderAll();
+    });
+
+    fabricCanvas.setActiveObject(polygon);
+    fabricCanvas.renderAll();
+}
+
+function updatePolygonPath(polygon) {
+    const points = polygon.points;
+    const path = points.map((p, i) => {
+        return (i === 0 ? 'M' : 'L') + p.x + ' ' + p.y;
+    }).join(' ') + ' Z';
+    polygon.path = path;
+    polygon.set({ dirty: true });
+}
+
+function updateVertexCircles(polygonData) {
+    polygonData.vertexCircles.forEach((circle, index) => {
+        const point = polygonData.polygon.points[index];
+        circle.set({
+            left: point.x,
+            top: point.y
+        });
+        circle.setCoords();
+    });
 }
 
 function saveAnnotation() {
     if (polygons.length > 0 && img && classes.length > 0) {
         const annotations = {
             image: imageUpload.files[0]?.name,
-            width: img.width,
-            height: img.height,
+            width: img.width / scaleFactor,
+            height: img.height / scaleFactor,
             polygons: polygons.map(poly => ({
                 classId: poly.classId,
-                points: poly.points.flatMap(point => [point.x / scaleFactor, point.y / scaleFactor])
+                points: poly.polygon.points.flatMap(point => [point.x / scaleFactor, point.y / scaleFactor])
             })),
             classes: classes
         };
-        
+
         fetch('/save-annotation', {
             method: 'POST',
             headers: {
