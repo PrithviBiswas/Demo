@@ -209,7 +209,9 @@ function addPolygon(points) {
         hasBorders: false,
         hasControls: false,
         lockMovementX: true,
-        lockMovementY: true
+        lockMovementY: true,
+        selectionColor: 'transparent',
+        selectionLineWidth: 0
     });
 
     polygon.on('moving', () => {
