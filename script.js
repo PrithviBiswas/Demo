@@ -264,27 +264,6 @@ function addPolygon(points) {
 
     polygons.push({ polygon: polygon, vertexCircles: circles, classId: polygon.classId });
 
-    polygon.on('selected', () => {
-        // Show vertex circles for selected polygon
-        polygons.forEach(p => {
-            p.vertexCircles.forEach(c => c.visible = false);
-        });
-        const p = polygons.find(p => p.polygon === polygon);
-        if (p) {
-            p.vertexCircles.forEach(c => c.set('visible', true));
-        }
-        fabricCanvas.renderAll();
-    });
-
-    polygon.on('deselected', () => {
-        // Hide vertex circles when polygon is deselected
-        const p = polygons.find(p => p.polygon === polygon);
-        if (p) {
-            p.vertexCircles.forEach(c => c.set('visible', false));
-        }
-        fabricCanvas.renderAll();
-    });
-
     fabricCanvas.setActiveObject(polygon);
     fabricCanvas.renderAll();
 }
