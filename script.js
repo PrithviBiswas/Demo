@@ -1,7 +1,8 @@
 const canvasElement = document.getElementById('annotationCanvas');
 const fabricCanvas = new fabric.Canvas('annotationCanvas', {
     selection: false,
-    preserveObjectStacking: true
+    preserveObjectStacking: true,
+    skipTargetFind: false
 });
 const imageUpload = document.getElementById('imageUpload');
 const drawBtn = document.getElementById('drawBtn');
@@ -83,7 +84,7 @@ drawBtn.addEventListener('click', function() {
         fabricCanvas.on('mouse:down', onCanvasMouseDown);
         fabricCanvas.on('mouse:dblclick', completePolygon);
     } else {
-        fabricCanvas.selection = true;
+        fabricCanvas.selection = false; // Keep selection false to remove bounding box
         fabricCanvas.defaultCursor = 'default';
         fabricCanvas.off('mouse:down', onCanvasMouseDown);
         fabricCanvas.off('mouse:dblclick', completePolygon);
