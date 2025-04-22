@@ -1,4 +1,4 @@
-from flask import Flask, send_from_directory, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
 from datetime import datetime
 import json
@@ -8,6 +8,14 @@ app.config['UPLOAD_FOLDER'] = 'annotations'
 
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
+
+# Example segmentation_points data to pass to template
+segmentation_points = [
+    [100, 200],
+    [230, 243],
+    [150, 300],
+    [120, 280]
+]
 
 @app.route('/save-annotation', methods=['POST'])
 def save_annotation():
@@ -56,7 +64,8 @@ def save_annotation():
 
 @app.route('/')
 def serve_index():
-    return send_from_directory('.', 'index.html')
+    print("Debug: segmentation_points =", segmentation_points)
+    return render_template('index.html', segmentation_points=segmentation_points)
 
 @app.route('/<path:path>')
 def serve_static(path):
