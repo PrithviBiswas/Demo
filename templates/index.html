@@ -33,6 +33,10 @@
         <canvas id="annotationCanvas"></canvas>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
+    <script>
+        var data = JSON.parse('{{ segmentation_points | tojson | safe | tojson | safe }}');
+        console.log("Loaded segmentation points:", data);
+    </script>
     <script src="script.js"></script>
 </body>
 </html>

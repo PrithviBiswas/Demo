@@ -65,7 +65,7 @@ def save_annotation():
 @app.route('/')
 def serve_index():
     print("Debug: segmentation_points =", segmentation_points)
-    return render_template('index.html', segmentation_points=segmentation_points)
+    return render_template("index.html", segmentation_points=segmentation_points)
 
 @app.route('/<path:path>')
 def serve_static(path):

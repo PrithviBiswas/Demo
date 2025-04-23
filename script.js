@@ -424,7 +424,7 @@ function saveAnnotation() {
             height: img.height / scaleFactor,
             polygons: polygons.map(poly => ({
                 classId: poly.classId,
-                points: poly.polygon.points.flatMap(point => [point.x / scaleFactor, point.y / scaleFactor])
+                points: poly.polygon.points.map(point => [point.x / scaleFactor, point.y / scaleFactor])
             })),
             classes: classes
         };
