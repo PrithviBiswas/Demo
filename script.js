@@ -214,8 +214,8 @@ showPolygonBtn.addEventListener('click', function() {
     activeClass = classData;
     console.log("Active Class set to:", activeClass);
 
-    // Convert array of [x, y] to array of {x, y} objects
-    currentPolygonPoints = data.map(point => ({ x: point[0], y: point[1] }));
+    // Convert array of [x, y] to array of {x, y} objects scaled by scaleFactor
+    currentPolygonPoints = data.map(point => ({ x: point[0] * scaleFactor, y: point[1] * scaleFactor }));
     console.log("Points to draw:", currentPolygonPoints);
 
     addPolygon(currentPolygonPoints);
