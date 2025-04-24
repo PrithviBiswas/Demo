@@ -27,15 +27,18 @@
                 <button id="drawBtn">Draw Polygon</button>
                 <button id="undoBtn">Undo</button>
                 <button id="clearBtn">Clear Canvas</button>
+                <button id="showPolygonBtn">Show Polygon</button>
                 <button id="saveBtn">Save Annotation</button>
             </div>
         </div>
         <canvas id="annotationCanvas"></canvas>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
-    <script>
-        var data = JSON.parse('{{ segmentation_points | tojson | safe | tojson | safe }}');
-        console.log("Loaded segmentation points:", data);
+    <script id="segmentation-data" type="application/json">
+        {{ segmentation_points | tojson | safe }}
+    </script>
+    <script id="class-data" type="application/json">
+        {{ default_class | tojson | safe }}
     </script>
     <script src="script.js"></script>
 </body>

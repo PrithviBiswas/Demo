@@ -182,6 +182,45 @@ clearBtn.addEventListener('click', function() {
  */
 saveBtn.addEventListener('click', saveAnnotation);
 
+function getJSONData(id) {
+    const scriptTag = document.getElementById(id);
+    if (!scriptTag) return null;
+    try {
+        return JSON.parse(scriptTag.textContent);
+    } catch (e) {
+        console.error(`Error parsing JSON from script tag with id ${id}:`, e);
+        return null;
+    }
+}
+
+let data = getJSONData('segmentation-data');
+let classData = getJSONData('class-data');
+
+console.log("Loaded segmentation points:", data);
+console.log("Loaded class data:", classData);
+
+// Event listener for Show Polygon button
+const showPolygonBtn = document.getElementById('showPolygonBtn');
+showPolygonBtn.addEventListener('click', function() {
+    if (!data || data.length === 0) {
+        alert('No segmentation points data available');
+        return;
+    }
+    console.log("Show Polygon button clicked");
+    console.log("Data:", data);
+    console.log("Class Data:", classData);
+
+    // Set activeClass to classData
+    activeClass = classData;
+    console.log("Active Class set to:", activeClass);
+
+    // Convert array of [x, y] to array of {x, y} objects
+    currentPolygonPoints = data.map(point => ({ x: point[0], y: point[1] }));
+    console.log("Points to draw:", currentPolygonPoints);
+
+    addPolygon(currentPolygonPoints);
+});
+
 /**
  * Temporary polygon used during drawing before completion.
  */
