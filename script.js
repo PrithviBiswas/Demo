@@ -73,6 +73,7 @@ function renderClassList() {
         classItem.addEventListener('click', () => {
             activeClass = cls;
             renderClassList();
+            // Update cursor color or other UI elements if needed
         });
         classList.appendChild(classItem);
     });
@@ -134,6 +135,10 @@ drawBtn.addEventListener('click', function() {
     isDrawing = !isDrawing;
     drawBtn.textContent = isDrawing ? 'Drawing...' : 'Draw Polygon';
     if (isDrawing) {
+        // Clear currentPolygonPoints and remove any temporary polygons/vertices when starting to draw
+        currentPolygonPoints = [];
+        removeTemporaryPolygon();
+
         fabricCanvas.selection = false;
         fabricCanvas.defaultCursor = 'crosshair';
         fabricCanvas.on('mouse:down', onCanvasMouseDown);
@@ -210,9 +215,18 @@ showPolygonBtn.addEventListener('click', function() {
     console.log("Data:", data);
     console.log("Class Data:", classData);
 
+    // Add classData to classes array if not already present
+    if (classData && !classes.some(c => c.id === classData.id || c.name === classData.name)) {
+        classes.push(classData);
+        renderClassList();
+    }
+
     // Set activeClass to classData
     activeClass = classData;
     console.log("Active Class set to:", activeClass);
+
+    // Clear currentPolygonPoints to avoid mixing polygons
+    currentPolygonPoints = [];
 
     // Convert array of [x, y] to array of {x, y} objects scaled by scaleFactor
     currentPolygonPoints = data.map(point => ({ x: point[0] * scaleFactor, y: point[1] * scaleFactor }));
