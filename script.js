@@ -245,10 +245,6 @@ let tempPolygon = null;
  */
 let tempVertexCircles = [];
 
-/**
- * Array of vertex circles for existing polygons.
- */
-let vertexCircles = [];
 
 /**
  * Handler for mouse down event on the canvas during drawing mode.
@@ -345,7 +341,6 @@ function clearAllPolygons() {
         p.vertexCircles.forEach(c => fabricCanvas.remove(c));
     });
     polygons = [];
-    vertexCircles = [];
     currentPolygonPoints = [];
     fabricCanvas.discardActiveObject();
     fabricCanvas.renderAll();
