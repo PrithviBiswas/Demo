@@ -1,7 +1,7 @@
 /**
- * Get the canvas HTML element and initialize Fabric.js canvas
- * with selection disabled and object stacking preserved.
+ * Image Annotation Tool - Modularized and Improved
  */
+
 const canvasElement = document.getElementById('annotationCanvas');
 const fabricCanvas = new fabric.Canvas('annotationCanvas', {
     selection: false,
@@ -9,10 +9,6 @@ const fabricCanvas = new fabric.Canvas('annotationCanvas', {
     skipTargetFind: false
 });
 
-/**
- * Get references to UI elements for image upload, drawing,
- * clearing, saving, and class management.
- */
 const imageUpload = document.getElementById('imageUpload');
 const drawBtn = document.getElementById('drawBtn');
 const clearBtn = document.getElementById('clearBtn');
@@ -21,45 +17,33 @@ const addClassBtn = document.getElementById('addClassBtn');
 const newClassName = document.getElementById('newClassName');
 const newClassColor = document.getElementById('newClassColor');
 const classList = document.getElementById('classList');
+const showPolygonBtn = document.getElementById('showPolygonBtn');
 
-/**
- * Flag indicating whether the user is currently drawing a polygon.
- */
 let isDrawing = false;
-
-/**
- * Array of points (objects with x and y) representing the current polygon being drawn.
- */
 let currentPolygonPoints = [];
-
-/**
- * Array of polygon objects, each containing the Fabric polygon and its vertex circles.
- */
 let polygons = [];
-
-/**
- * Array of class objects, each with name, color, and id.
- */
 let classes = [];
-
-/**
- * The currently active class selected for polygon annotation.
- */
 let activeClass = null;
-
-/**
- * Fabric.js Image object representing the uploaded image.
- */
 let img = null;
+let scaleFactor = 1;
+
+let tempPolygon = null;
+let tempVertexCircles = [];
 
 /**
- * Scale factor applied to the image and polygons for fitting the canvas.
+ * Initialize event listeners
  */
-let scaleFactor = 1;
+function initEventListeners() {
+    addClassBtn.addEventListener('click', onAddClass);
+    imageUpload.addEventListener('change', onImageUpload);
+    drawBtn.addEventListener('click', onDrawToggle);
+    clearBtn.addEventListener('click', onClearCanvas);
+    saveBtn.addEventListener('click', saveAnnotation);
+    showPolygonBtn.addEventListener('click', onShowPolygon);
+}
 
 /**
  * Render the list of classes in the UI.
- * Highlights the active class.
  */
 function renderClassList() {
     classList.innerHTML = '';
@@ -73,17 +57,15 @@ function renderClassList() {
         classItem.addEventListener('click', () => {
             activeClass = cls;
             renderClassList();
-            // Update cursor color or other UI elements if needed
         });
         classList.appendChild(classItem);
     });
 }
 
 /**
- * Event listener for adding a new class.
- * Adds the class if the name is unique and non-empty.
+ * Add a new class if valid.
  */
-addClassBtn.addEventListener('click', function() {
+function onAddClass() {
     const name = newClassName.value.trim();
     const color = newClassColor.value;
 
@@ -94,14 +76,12 @@ addClassBtn.addEventListener('click', function() {
         renderClassList();
         newClassName.value = '';
     }
-});
+}
 
 /**
- * Event listener for image upload.
- * Loads the image into the Fabric canvas and scales it to fit.
- * Clears existing polygons on new image load.
+ * Handle image upload and setup canvas.
  */
-imageUpload.addEventListener('change', function(e) {
+function onImageUpload(e) {
     const file = e.target.files[0];
     if (file) {
         const reader = new FileReader();
@@ -123,42 +103,62 @@ imageUpload.addEventListener('change', function(e) {
         };
         reader.readAsDataURL(file);
     }
-});
+}
 
 /**
- * Event listener for the draw button.
- * Toggles drawing mode on and off.
- * When drawing, sets cursor and enables mouse events for drawing.
- * When not drawing, finalizes polygon and disables drawing events.
+ * Toggle drawing mode.
  */
-drawBtn.addEventListener('click', function() {
+function onDrawToggle() {
     isDrawing = !isDrawing;
     drawBtn.textContent = isDrawing ? 'Drawing...' : 'Draw Polygon';
     if (isDrawing) {
-        // Clear currentPolygonPoints and remove any temporary polygons/vertices when starting to draw
-        currentPolygonPoints = [];
-        removeTemporaryPolygon();
-
-        fabricCanvas.selection = false;
-        fabricCanvas.defaultCursor = 'crosshair';
-        fabricCanvas.on('mouse:down', onCanvasMouseDown);
-        fabricCanvas.on('mouse:dblclick', completePolygon);
+        startDrawing();
     } else {
-        fabricCanvas.selection = false; // Keep selection false to remove bounding box
-        fabricCanvas.defaultCursor = 'default';
-        fabricCanvas.off('mouse:down', onCanvasMouseDown);
-        fabricCanvas.off('mouse:dblclick', completePolygon);
-        if (currentPolygonPoints.length > 2) {
-            addPolygon(currentPolygonPoints);
-        }
-        currentPolygonPoints = [];
-        removeTemporaryPolygon();
+        stopDrawing();
     }
-});
+}
 
 /**
- * Completes the current polygon being drawn if it has at least 3 points.
- * Adds the polygon to the canvas and resets the current points.
+ * Start drawing mode.
+ */
+function startDrawing() {
+    currentPolygonPoints = [];
+    removeTemporaryPolygon();
+
+    fabricCanvas.selection = false;
+    fabricCanvas.defaultCursor = 'crosshair';
+    fabricCanvas.on('mouse:down', onCanvasMouseDown);
+    fabricCanvas.on('mouse:dblclick', completePolygon);
+}
+
+/**
+ * Stop drawing mode.
+ */
+function stopDrawing() {
+    fabricCanvas.selection = false;
+    fabricCanvas.defaultCursor = 'default';
+    fabricCanvas.off('mouse:down', onCanvasMouseDown);
+    fabricCanvas.off('mouse:dblclick', completePolygon);
+    if (currentPolygonPoints.length > 2) {
+        addPolygon(currentPolygonPoints);
+    }
+    currentPolygonPoints = [];
+    removeTemporaryPolygon();
+}
+
+/**
+ * Handle mouse down event during drawing.
+ */
+function onCanvasMouseDown(options) {
+    if (!isDrawing) return;
+    const pointer = fabricCanvas.getPointer(options.e);
+    currentPolygonPoints.push({ x: pointer.x, y: pointer.y });
+    drawTemporaryPolygon();
+    drawTemporaryVertexCircles();
+}
+
+/**
+ * Complete the polygon being drawn.
  */
 function completePolygon() {
     if (currentPolygonPoints.length > 2) {
@@ -169,24 +169,41 @@ function completePolygon() {
 }
 
 /**
- * Event listener for the clear button.
- * Clears the canvas and resets polygons.
- * Restores the background image if present.
+ * Clear the canvas and polygons.
  */
-clearBtn.addEventListener('click', function() {
+function onClearCanvas() {
     fabricCanvas.clear();
     if (img) {
         fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
     }
     clearAllPolygons();
-});
+}
 
 /**
- * Event listener for the save button.
- * Calls the saveAnnotation function to save polygon annotations.
+ * Show polygon from loaded data.
  */
-saveBtn.addEventListener('click', saveAnnotation);
+function onShowPolygon() {
+    const data = getJSONData('segmentation-data');
+    const classData = getJSONData('class-data');
 
+    if (!data || data.length === 0) {
+        alert('No segmentation points data available');
+        return;
+    }
+
+    if (classData && !classes.some(c => c.id === classData.id || c.name === classData.name)) {
+        classes.push(classData);
+        renderClassList();
+    }
+
+    activeClass = classData;
+    currentPolygonPoints = data.map(point => ({ x: point[0] * scaleFactor, y: point[1] * scaleFactor }));
+    addPolygon(currentPolygonPoints);
+}
+
+/**
+ * Get JSON data from script tag by id.
+ */
 function getJSONData(id) {
     const scriptTag = document.getElementById(id);
     if (!scriptTag) return null;
@@ -198,70 +215,8 @@ function getJSONData(id) {
     }
 }
 
-let data = getJSONData('segmentation-data');
-let classData = getJSONData('class-data');
-
-console.log("Loaded segmentation points:", data);
-console.log("Loaded class data:", classData);
-
-// Event listener for Show Polygon button
-const showPolygonBtn = document.getElementById('showPolygonBtn');
-showPolygonBtn.addEventListener('click', function() {
-    if (!data || data.length === 0) {
-        alert('No segmentation points data available');
-        return;
-    }
-    console.log("Show Polygon button clicked");
-    console.log("Data:", data);
-    console.log("Class Data:", classData);
-
-    // Add classData to classes array if not already present
-    if (classData && !classes.some(c => c.id === classData.id || c.name === classData.name)) {
-        classes.push(classData);
-        renderClassList();
-    }
-
-    // Set activeClass to classData
-    activeClass = classData;
-    console.log("Active Class set to:", activeClass);
-
-    // Clear currentPolygonPoints to avoid mixing polygons
-    currentPolygonPoints = [];
-
-    // Convert array of [x, y] to array of {x, y} objects scaled by scaleFactor
-    currentPolygonPoints = data.map(point => ({ x: point[0] * scaleFactor, y: point[1] * scaleFactor }));
-    console.log("Points to draw:", currentPolygonPoints);
-
-    addPolygon(currentPolygonPoints);
-});
-
 /**
- * Temporary polygon used during drawing before completion.
- */
-let tempPolygon = null;
-
-/**
- * Temporary vertex circles used during drawing before completion.
- */
-let tempVertexCircles = [];
-
-
-/**
- * Handler for mouse down event on the canvas during drawing mode.
- * Adds the clicked point to current polygon points and updates temporary polygon and vertices.
- * @param {Object} options - Fabric.js mouse event options.
- */
-function onCanvasMouseDown(options) {
-    if (!isDrawing) return;
-    const pointer = fabricCanvas.getPointer(options.e);
-    currentPolygonPoints.push({ x: pointer.x, y: pointer.y });
-    drawTemporaryPolygon();
-    drawTemporaryVertexCircles();
-}
-
-/**
- * Draws a temporary polygon (polyline) on the canvas during drawing mode.
- * Removes any existing temporary polygon before drawing.
+ * Draw temporary polygon during drawing.
  */
 function drawTemporaryPolygon() {
     removeTemporaryPolygon();
@@ -279,13 +234,11 @@ function drawTemporaryPolygon() {
 }
 
 /**
- * Draws temporary vertex circles on the canvas during drawing mode.
- * Removes existing temporary vertex circles before drawing.
- * Adds event listeners to update polygon points when vertices are moved.
+ * Draw temporary vertex circles during drawing.
  */
 function drawTemporaryVertexCircles() {
     removeTemporaryVertexCircles();
-    currentPolygonPoints.forEach(point => {
+    currentPolygonPoints.forEach((point, index) => {
         const circle = new fabric.Circle({
             left: point.x - 5,
             top: point.y - 5,
@@ -296,15 +249,13 @@ function drawTemporaryVertexCircles() {
             originX: 'center',
             originY: 'center'
         });
-        circle.on('moving', function(e) {
+        circle.on('moving', function() {
             const pos = circle.getCenterPoint();
-            const index = circle.index;
             currentPolygonPoints[index].x = pos.x;
             currentPolygonPoints[index].y = pos.y;
             drawTemporaryPolygon();
             drawTemporaryVertexCircles();
         });
-        circle.index = currentPolygonPoints.indexOf(point);
         tempVertexCircles.push(circle);
         fabricCanvas.add(circle);
     });
@@ -312,7 +263,7 @@ function drawTemporaryVertexCircles() {
 }
 
 /**
- * Removes the temporary polygon and its vertex circles from the canvas.
+ * Remove temporary polygon and vertex circles.
  */
 function removeTemporaryPolygon() {
     if (tempPolygon) {
@@ -324,7 +275,7 @@ function removeTemporaryPolygon() {
 }
 
 /**
- * Removes all temporary vertex circles from the canvas.
+ * Remove all temporary vertex circles.
  */
 function removeTemporaryVertexCircles() {
     tempVertexCircles.forEach(circle => fabricCanvas.remove(circle));
@@ -332,8 +283,7 @@ function removeTemporaryVertexCircles() {
 }
 
 /**
- * Clears all polygons and their vertex circles from the canvas.
- * Resets polygon and vertex circle arrays and current points.
+ * Clear all polygons and vertex circles.
  */
 function clearAllPolygons() {
     polygons.forEach(p => {
@@ -347,107 +297,94 @@ function clearAllPolygons() {
 }
 
 /**
- * Adds a polygon to the canvas with given points.
- * Sets up event listeners for moving and modifying the polygon.
- * Creates vertex circles for editing polygon points.
- * @param {Array} points - Array of point objects {x, y} for the polygon vertices.
+ * Add polygon to canvas with event listeners and vertex circles.
  */
 function addPolygon(points) {
     const polygon = new fabric.Polygon(points, {
-        stroke: activeClass?.color || 'rgba(255,0,0,0.5)', // Stroke color of polygon
-        strokeWidth: 2, // Width of polygon stroke
-        fill: activeClass?.color || 'rgba(255,0,0,0.3)', // Fill color of polygon
-        objectCaching: false, // Disable object caching for better performance during editing
-        transparentCorners: false, // Corners are not transparent
-        cornerColor: 'blue', // Color of control corners
-        cornerSize: 8, // Size of control corners
-        hasRotatingPoint: false, // Disable rotation control
-        perPixelTargetFind: true, // Enable per-pixel target detection for better hit testing
-        selectable: true, // Polygon is selectable
-        hasBorders: false, // Disable bounding box borders
-        hasControls: false, // Disable control handles
-        lockMovementX: true, // Lock movement in X axis
-        lockMovementY: true, // Lock movement in Y axis
-        selectionColor: 'transparent', // Transparent selection color
-        selectionLineWidth: 0 // No selection line width
+        stroke: activeClass?.color || 'rgba(255,0,0,0.5)',
+        strokeWidth: 2,
+        fill: activeClass?.color || 'rgba(255,0,0,0.3)',
+        objectCaching: false,
+        transparentCorners: false,
+        cornerColor: 'blue',
+        cornerSize: 8,
+        hasRotatingPoint: false,
+        perPixelTargetFind: true,
+        selectable: true,
+        hasBorders: false,
+        hasControls: false,
+        lockMovementX: true,
+        lockMovementY: true,
+        selectionColor: 'transparent',
+        selectionLineWidth: 0
     });
 
-    // Event listener for when polygon is moved
     polygon.on('moving', () => {
-        updateVertexCircles(polygons.find(p => p.polygon === polygon)); // Update vertex circles position
-        fabricCanvas.renderAll(); // Re-render canvas
+        updateVertexCircles(polygons.find(p => p.polygon === polygon));
+        fabricCanvas.renderAll();
     });
 
-    // Event listener for when polygon is modified (e.g., after dragging)
     polygon.on('modified', () => {
         const p = polygons.find(p => p.polygon === polygon);
         if (!p) return;
-        // Update polygon points to current positions
         p.polygon.points = p.polygon.get('points').map(p => ({ x: p.x, y: p.y }));
-        updateVertexCircles(p); // Update vertex circles position
-        fabricCanvas.renderAll(); // Re-render canvas
+        updateVertexCircles(p);
+        fabricCanvas.renderAll();
     });
 
-    polygon.classId = activeClass?.id || 1; // Assign class ID to polygon
-    fabricCanvas.add(polygon); // Add polygon to canvas
+    polygon.classId = activeClass?.id || 1;
+    fabricCanvas.add(polygon);
 
-    // Create vertex circles for editing polygon vertices
     const circles = points.map((point, index) => {
         const circle = new fabric.Circle({
-            left: point.x - 5, // Position circle centered on vertex
+            left: point.x - 5,
             top: point.y - 5,
-            radius: 5, // Radius of vertex circle
-            fill: 'white', // Fill color of vertex circle
-            stroke: 'black', // Stroke color of vertex circle
-            strokeWidth: 1, // Stroke width of vertex circle
-            hasBorders: false, // No borders on vertex circle
-            hasControls: false, // No controls on vertex circle
-            originX: 'center', // Origin centered horizontally
-            originY: 'center', // Origin centered vertically
-            selectable: true, // Vertex circle is selectable
-            evented: true, // Vertex circle responds to events
-            index: index // Index of vertex in polygon points array
+            radius: 5,
+            fill: 'white',
+            stroke: 'black',
+            strokeWidth: 1,
+            hasBorders: false,
+            hasControls: false,
+            originX: 'center',
+            originY: 'center',
+            selectable: true,
+            evented: true,
+            index: index
         });
-        // Event listener for moving vertex circle
-        circle.on('moving', function(e) {
+        circle.on('moving', function() {
             const p = polygons.find(p => p.polygon === polygon);
             if (!p) return;
             const pos = circle.getCenterPoint();
-            // Update corresponding polygon point to new position
             p.polygon.points[circle.index].x = pos.x;
             p.polygon.points[circle.index].y = pos.y;
-            p.polygon.set({ dirty: true }); // Mark polygon as dirty for re-render
-            p.polygon.setCoords(); // Update polygon coordinates
-            updatePolygonPath(p.polygon); // Update polygon path string
-            updateVertexCircles(p); // Update vertex circles position
-            fabricCanvas.renderAll(); // Re-render canvas
+            p.polygon.set({ dirty: true });
+            p.polygon.setCoords();
+            updatePolygonPath(p.polygon);
+            updateVertexCircles(p);
+            fabricCanvas.renderAll();
         });
-        fabricCanvas.add(circle); // Add vertex circle to canvas
+        fabricCanvas.add(circle);
         return circle;
     });
 
-    polygons.push({ polygon: polygon, vertexCircles: circles, classId: polygon.classId }); // Add polygon and its vertices to polygons array
+    polygons.push({ polygon: polygon, vertexCircles: circles, classId: polygon.classId });
 
-    fabricCanvas.setActiveObject(polygon); // Set polygon as active object
-    fabricCanvas.renderAll(); // Render canvas
+    fabricCanvas.setActiveObject(polygon);
+    fabricCanvas.renderAll();
 }
 
 /**
- * Updates the SVG path string of the polygon based on its points.
- * @param {fabric.Polygon} polygon - The polygon object to update.
+ * Update polygon SVG path string.
  */
 function updatePolygonPath(polygon) {
     const points = polygon.points;
-    const path = points.map((p, i) => {
-        return (i === 0 ? 'M' : 'L') + p.x + ' ' + p.y;
-    }).join(' ') + ' Z';
+    const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x + ' ' + p.y).join(' ') + ' Z';
     polygon.path = path;
     polygon.set({ dirty: true });
 }
 
 /**
- * Updates the position of vertex circles to match the polygon points.
- * @param {Object} polygonData - Object containing polygon and its vertex circles.
+ * Update vertex circles position.
  */
 function updateVertexCircles(polygonData) {
     polygonData.vertexCircles.forEach((circle, index) => {
@@ -461,8 +398,7 @@ function updateVertexCircles(polygonData) {
 }
 
 /**
- * Saves the current annotations by sending polygon data and classes to the server.
- * Scales polygon points back to original image size before sending.
+ * Save annotations to server.
  */
 function saveAnnotation() {
     if (polygons.length > 0 && img && classes.length > 0) {
@@ -500,3 +436,6 @@ function saveAnnotation() {
         alert(img ? 'No polygons to save' : 'Please upload an image first');
     }
 }
+
+// Initialize event listeners on page load
+initEventListeners();

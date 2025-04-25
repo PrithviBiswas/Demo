@@ -5,33 +5,32 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
+    <div class="container" role="main" aria-label="Image Annotation Tool">
         <h1>Image Annotation Tool</h1>
-        <div class="controls">
-            <input type="file" id="imageUpload" accept="image/*">
-            <div class="class-controls">
+        <div class="controls" role="region" aria-label="Controls">
+            <input type="file" id="imageUpload" accept="image/*" aria-label="Upload Image">
+            <div class="class-controls" role="region" aria-label="Class Management">
                 <div class="class-input">
-                    <input type="text" id="newClassName" placeholder="New class name">
-                    <select id="newClassColor">
+                    <input type="text" id="newClassName" placeholder="New class name" aria-label="New class name">
+                    <select id="newClassColor" aria-label="Select class color">
                         <option value="rgba(255,0,0,0.5)">Red</option>
                         <option value="rgba(0,255,0,0.5)">Green</option>
                         <option value="rgba(0,0,255,0.5)">Blue</option>
                         <option value="rgba(255,255,0,0.5)">Yellow</option>
                         <option value="rgba(255,0,255,0.5)">Magenta</option>
                     </select>
-                    <button id="addClassBtn">Add Class</button>
+                    <button id="addClassBtn" aria-label="Add new class">Add Class</button>
                 </div>
-                <div id="classList" class="class-list"></div>
+                <div id="classList" class="class-list" role="list" aria-label="Class list"></div>
             </div>
-            <div class="draw-controls">
-                <button id="drawBtn">Draw Polygon</button>
-                <!-- Undo button removed -->
-                <button id="clearBtn">Clear Canvas</button>
-                <button id="showPolygonBtn">Show Polygon</button>
-                <button id="saveBtn">Save Annotation</button>
+            <div class="draw-controls" role="region" aria-label="Drawing Controls">
+                <button id="drawBtn" aria-label="Toggle draw polygon mode">Draw Polygon</button>
+                <button id="clearBtn" aria-label="Clear canvas">Clear Canvas</button>
+                <button id="showPolygonBtn" aria-label="Show polygon from data">Show Polygon</button>
+                <button id="saveBtn" aria-label="Save annotation">Save Annotation</button>
             </div>
         </div>
-        <canvas id="annotationCanvas"></canvas>
+        <canvas id="annotationCanvas" aria-label="Annotation canvas"></canvas>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
     <script id="segmentation-data" type="application/json">
