@@ -1,5 +1,5 @@
 /**
- * Image Annotation Tool - Modularized and Improved
+ * Image Annotation Tool - Complete script.js with saveAnnotation function
  */
 
 const canvasElement = document.getElementById('annotationCanvas');
@@ -31,6 +31,46 @@ let tempPolygon = null;
 let tempVertexCircles = [];
 
 /**
+ * Save annotation function to send polygon data to backend
+ */
+function saveAnnotation() {
+    if (polygons.length > 0 && img && classes.length > 0) {
+        const annotations = {
+            image: imageUpload.files[0]?.name,
+            width: img.width / scaleFactor,
+            height: img.height / scaleFactor,
+            polygons: polygons.map(poly => ({
+                classId: poly.classId,
+                points: poly.polygon.points.map(point => [point.x / scaleFactor, point.y / scaleFactor])
+            })),
+            classes: classes
+        };
+
+        fetch('/save-annotation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(annotations)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(`COCO annotation saved as ${data.filename}`);
+            } else {
+                alert('Error saving annotation: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to save annotation');
+        });
+    } else {
+        alert(img ? 'No polygons to save' : 'Please upload an image first');
+    }
+}
+
+/**
  * Initialize event listeners
  */
 function initEventListeners() {
@@ -57,6 +97,10 @@ function renderClassList() {
         classItem.addEventListener('click', () => {
             activeClass = cls;
             renderClassList();
+            if (isDrawing) {
+                currentPolygonPoints = [];
+                removeTemporaryPolygon();
+            }
         });
         classList.appendChild(classItem);
     });
@@ -75,6 +119,10 @@ function onAddClass() {
         activeClass = newClass;
         renderClassList();
         newClassName.value = '';
+        if (isDrawing) {
+            currentPolygonPoints = [];
+            removeTemporaryPolygon();
+        }
     }
 }
 
@@ -180,7 +228,7 @@ function onClearCanvas() {
 }
 
 /**
- * Show polygon from loaded data.
+ * Show polygon from loaded data without clearing existing polygons.
  */
 function onShowPolygon() {
     const data = getJSONData('segmentation-data');
@@ -197,8 +245,11 @@ function onShowPolygon() {
     }
 
     activeClass = classData;
-    currentPolygonPoints = data.map(point => ({ x: point[0] * scaleFactor, y: point[1] * scaleFactor }));
-    addPolygon(currentPolygonPoints);
+
+    // Convert array of [x, y] to array of {x, y} objects scaled by scaleFactor
+    const points = data.map(point => ({ x: point[0] * scaleFactor, y: point[1] * scaleFactor }));
+
+    addPolygon(points);
 }
 
 /**
@@ -395,46 +446,6 @@ function updateVertexCircles(polygonData) {
         });
         circle.setCoords();
     });
-}
-
-/**
- * Save annotations to server.
- */
-function saveAnnotation() {
-    if (polygons.length > 0 && img && classes.length > 0) {
-        const annotations = {
-            image: imageUpload.files[0]?.name,
-            width: img.width / scaleFactor,
-            height: img.height / scaleFactor,
-            polygons: polygons.map(poly => ({
-                classId: poly.classId,
-                points: poly.polygon.points.map(point => [point.x / scaleFactor, point.y / scaleFactor])
-            })),
-            classes: classes
-        };
-
-        fetch('/save-annotation', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(annotations)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                alert(`COCO annotation saved as ${data.filename}`);
-            } else {
-                alert('Error saving annotation: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to save annotation');
-        });
-    } else {
-        alert(img ? 'No polygons to save' : 'Please upload an image first');
-    }
 }
 
 // Initialize event listeners on page load
